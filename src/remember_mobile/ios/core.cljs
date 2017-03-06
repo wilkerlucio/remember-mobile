@@ -1,46 +1,60 @@
 (ns remember-mobile.ios.core
   (:require [om.next :as om :refer-macros [defui]]
+            [cljs.nodejs :as node]
             [re-natal.support :as sup]
             [remember-mobile.state :as state]
+            [remember-mobile.components.common :as uic]
             [untangled.client.core :as uc]))
 
-(set! js/window.React (js/require "react"))
-(def ReactNative (js/require "react-native"))
-
-(defn create-element [rn-comp opts & children]
-  (apply js/React.createElement rn-comp (clj->js opts) children))
-
+(def ReactNative (node/require "react-native"))
 (def app-registry (.-AppRegistry ReactNative))
-(def view (partial create-element (.-View ReactNative)))
-(def text (partial create-element (.-Text ReactNative)))
-(def image (partial create-element (.-Image ReactNative)))
-(def touchable-highlight (partial create-element (.-TouchableHighlight ReactNative)))
+(def logo-img (node/require "./images/cljs.png"))
 
-(def logo-img (js/require "./images/cljs.png"))
-
-(defn alert [title]
-  (.alert (.-Alert ReactNative) title))
-
-(defui AppRoot
+(om/defui ^:once MemoRow
   static uc/InitialAppState
-  (initial-state [_ _] {:app/msg "Hello Clojure in iOS and Android!"
-                        :app/counter 1})
+  (initial-state [_ _] {:memo/title "sample"})
 
   static om/IQuery
-  (query [this]
-    '[:app/msg :app/counter])
+  (query [_] [:db/id :memo/title])
 
   Object
   (render [this]
+    (let [{:memo/keys [title]} (om/props this)]
+      (uic/text {:style {:fontSize 30 :fontWeight "100" :marginBottom 20 :textAlign "center"}}
+        title))))
+
+(def memo-row (om/factory MemoRow))
+
+(defui AppRoot
+  static uc/InitialAppState
+  (initial-state [_ _] {:app/msg       "Hello Clojure in iOS and Android!"
+                        :app/counter   1
+                        :memo/children (->> (repeatedly #(uc/initial-state MemoRow {}))
+                                            (take 20)
+                                            (vec))})
+
+  static om/IQuery
+  (query [this]
+    [:app/msg :app/counter {:memo/children (om/get-query MemoRow)}])
+
+  Object
+  (initLocalState [this]
+    {:data-source (-> (uic/list-view-ds {:rowHasChanged #(not= % %2)})
+                      (.cloneWithRows (into-array (-> this om/props :memo/children))))})
+
+  (render [this]
     (let [{:app/keys [msg counter]} (om/props this)]
-      (view {:style {:flexDirection "column" :margin 40 :alignItems "center"}}
-        (text {:style {:fontSize 30 :fontWeight "100" :marginBottom 20 :textAlign "center"}} msg)
-        (image {:source logo-img
-                :style  {:width 80 :height 80 :marginBottom 30}})
-        (text {:style {:fontSize 30 :fontWeight "100" :marginBottom 20 :textAlign "center"}} (str counter))
-        (touchable-highlight {:style   {:backgroundColor "#999" :padding 10 :borderRadius 5}
-                              :onPress #(om/transact! this '[(app/increment {})])}
-          (text {:style {:color "white" :textAlign "center" :fontWeight "bold"}} "press me"))))))
+      (uic/view {:style {:flexDirection "column" :alignItems "stretch"}}
+        (uic/list-view {:dataSource (om/get-state this :data-source)
+                        :style {:flexGrow 1}
+                        :renderRow memo-row})
+        #_(uic/text {:style {:fontSize 30 :fontWeight "100" :marginBottom 20 :textAlign "center"}} msg)
+        #_(uic/image {:source logo-img
+                      :style  {:width 80 :height 80 :marginBottom 30}})
+        #_(uic/text {:style {:fontSize 30 :fontWeight "100" :marginBottom 20 :textAlign "center"}} (str counter))
+        #_(uic/touchable-highlight {:style   {:backgroundColor "#999" :padding 10 :borderRadius 5}
+                                    :onPress #(om/transact! this '[(app/increment {})])}
+            (uic/text {:style {:color "white" :textAlign "center" :fontWeight "bold"}} "press me"))))))
 
 (defonce RootNode (sup/root-node! 1))
 (defonce app-root (om/factory RootNode))
