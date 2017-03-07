@@ -7,13 +7,13 @@
 (def ReactNative (node/require "react-native"))
 
 (defn create-element [rn-comp opts & children]
-  (apply js/React.createElement rn-comp (clj->js opts) children))
+  (apply js/React.createElement rn-comp opts children))
 
 (def ListView (.-ListView ReactNative))
 (def DataSource (.-DataSource ListView))
 
 (defn list-view-ds [opts]
-  (DataSource. (clj->js opts)))
+  (DataSource. opts))
 
 (s/def ::component any?)
 (s/def ::row-has-changed? boolean?)
@@ -27,6 +27,10 @@
 (def image (partial create-element (.-Image ReactNative)))
 (def touchable-highlight (partial create-element (.-TouchableHighlight ReactNative)))
 (def list-view (partial create-element ListView))
+(def navigator (partial create-element (.-Navigator ReactNative)))
+(def navigator-ios (partial create-element (.-NavigatorIOS ReactNative)))
+(def navigator-bar (partial create-element (.. ReactNative -Navigator -NavigationBar)))
+
 
 (defn alert [title]
   (.alert (.-Alert ReactNative) title))
