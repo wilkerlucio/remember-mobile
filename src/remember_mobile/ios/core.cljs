@@ -4,6 +4,7 @@
             [re-natal.support :as sup]
             [remember-mobile.state :as state]
             [remember-mobile.components.common :as uic]
+            [remember-mobile.util.common :as util]
             [untangled.client.core :as uc]))
 
 (defn js-tl->clj [x]
@@ -16,10 +17,13 @@
 
 (om/defui ^:once MemoRow
   static uc/InitialAppState
-  (initial-state [_ data] (merge {:memo/title "sample"} data))
+  (initial-state [_ data] (merge {:db/id (random-uuid) :memo/title "sample"} data))
 
   static om/IQuery
   (query [_] [:db/id :memo/title])
+
+  static om/Ident
+  (ident [_ props] [:memo/by-id (:db/id props)])
 
   Object
   (render [this]
@@ -35,26 +39,23 @@
 
 (om/defui ^:once MyScene
   Object
-  (initLocalState [this]
-    {:data-source (-> (uic/list-view-ds #js {:rowHasChanged #(not= % %2)})
-                      (.cloneWithRows (into-array (-> this om/props :memo/children))))})
-
   (render [this]
     (let [{:keys [navigator] :as props} (om/props this)]
-      (println "======== rendering scene" props)
-      (uic/view nil
-        (uic/text #js {:style #js {:fontSize 30 :fontWeight "100" :marginBottom 20 :marginTop 30 :textAlign "center"}} "Some text")
-        (uic/touchable-highlight #js {:onPress (fn [] (.push navigator #js {:title "second" :component PlainScene}))}
+      (uic/view #js {:style #js {:marginTop 64 :flex 1}}
+        (uic/text #js {:style #js {:fontSize 30 :fontWeight "100" :marginBottom 20 :textAlign "center"}} "Bla")
+        (uic/touchable-highlight #js {:onPress       (fn [] (.push navigator #js {:title "second" :component PlainScene
+                                                                                  :passProps (util/map->js props)}))
+                                      :underlayColor "transparent"}
           (uic/image #js {:source logo-img
                           :style  #js {:width 80 :height 80 :marginBottom 30 :alignSelf "center"}}))
-        #_(uic/list-view #js {:dataSource (om/get-state this :data-source)
-                              :style      #js {:flexGrow 1}
-                              :renderRow  memo-row})))))
+        (uic/list-view {:renderRow memo-row
+                        :rows      (-> this om/props :memo/children)
+                        :style     #js {:flex 1}})))))
 
 (def my-scene (om/factory MyScene))
 
 (def PlainScene
-  (js/React.createClass #js {:render #(my-scene (js-tl->clj (.-props (js-this))))}))
+  (js/React.createClass #js {:render #(my-scene (util/js->map (.-props (js-this))))}))
 
 (defui AppRoot
   static uc/InitialAppState
@@ -62,7 +63,7 @@
                         :app/counter   1
                         :memo/children (->> (range)
                                             (map #(uc/initial-state MemoRow {:memo/title (str "Sample " %)}))
-                                            (take 20)
+                                            (take 30)
                                             (vec))})
 
   static om/IQuery
@@ -72,9 +73,10 @@
   Object
   (render [this]
     (let [{:app/keys [msg counter]
-           :keys     [ui/react-key]} (om/props this)]
+           :keys     [ui/react-key memo/children]
+           :as       props} (om/props this)]
       (uic/navigator-ios #js {:key          react-key
-                              :initialRoute #js {:title "bla" :component PlainScene}
+                              :initialRoute #js {:title "bla" :component PlainScene :passProps (util/map->js props)}
                               :style        #js {:flex 1}}))))
 
 (defonce RootNode (sup/root-node! 1))
